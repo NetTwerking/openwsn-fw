@@ -962,7 +962,7 @@ port_INLINE void activity_ti1ORri1(void) {
 
             // check whether we can send
             if (schedule_getOkToSend()) {
-                if (packetfunctions_isBroadcastMulticast(&neighbor)==FALSE){
+                if (packetfunctions_isBroadcastMulticast(&neighbor)==FALSE){ // multicast 가 아닌 공유셀은 오토노미어스셀
 
                     if (schedule_getShared()){
                         // this is an autonomous TxRx cell (unicast)
@@ -982,16 +982,16 @@ port_INLINE void activity_ti1ORri1(void) {
                         }
                         msf_updateCellsPassed(&neighbor);
                     }
-                } else {
-                    if (schedule_getShared()) {
+                } else { // multicast이면서 공유셀은 minimal cell
+                    if (schedule_getShared()) { 
                         // this is minimal cell
-                        if (schedule_getSlotOffset() == 0) {
+                        if (schedule_getSlotOffset() == 0) { // 0번 셀 EB 송신
                             couldSendEB=TRUE;
                             // look for an EB packet in the queue
                             ieee154e_vars.dataToSend = openqueue_macGetEBPacket();
                         }
                         
-                        if(schedule_getSlotOffset() == 1) {
+                        if(schedule_getSlotOffset() == 1) { // 1번 셀 DIO 송신
                             ieee154e_vars.dataToSend = openqueue_macGetDIOPacket();
                         }
                         
