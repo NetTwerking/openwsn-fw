@@ -16,13 +16,14 @@
 usendpacket_vars_t usendpacket_vars;
 
 
-static  uint8_t usendpacket_payload_True[]    = "0Omicke";
-static  uint8_t usendpacket_payload_False[]   = "0Xmicke";
+static  uint8_t usendpacket_payload_True[]    = "0Omicke"; // O 버튼으로 인터럽트가 걸린 경우 payload 
+static  uint8_t usendpacket_payload_False[]   = "0Xmicke"; // X 버튼으로 인터럽트가 걸린 경우 payload
+// payload[0] = packetcount, payload[1] = answer, payload[2] = moteid 
 static const uint8_t usendapcket_dst_addr[]   = {
    0xbb, 0xbb, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
 };
-uint8_t packetCount=1;
+uint8_t packetCount=1; //PDR 측정을 위해 패킷 생성 시 증가하는 count 변수, Payload[0]에 담아서 보낸다.
 
 //=========================== prototypes ======================================
 
@@ -42,14 +43,15 @@ void usendpacket_init(void) {
     usendpacket_vars.desc.callbackSendDone  = &usendpacket_sendDone;
     openudp_register(&usendpacket_vars.desc);
 
-    usendpacket_vars.period = USENDPACKET_PERIOD_MS;
+    usendpacket_vars.period = USENDPACKET_PERIOD_MS; //(테스트용) 패킷 생성 주기 3초로 설정
     // start periodic timer
     usendpacket_vars.timerId = opentimers_create(TIMER_GENERAL_PURPOSE, TASKPRIO_UDP);
 
-    usendpacket_payload_True[2] = idmanager_getMyID(ADDR_16B)->addr_16b[1];
-    usendpacket_payload_False[2] = idmanager_getMyID(ADDR_16B)->addr_16b[1];
+    usendpacket_payload_True[2] = idmanager_getMyID(ADDR_16B)->addr_16b[1]; // RPL protocol로 멀티 홉이 생기므로 어떤 기기에서 만든 패킷인지
+                                                                            // 확인 할 필요가 있어 moteid를 payload[1]에 담는다. 
+    usendpacket_payload_False[2] = idmanager_getMyID(ADDR_16B)->addr_16b[1]; 
     
-#ifdef PACKET_TEST
+#ifdef PACKET_TEST // opendefs.h에서 TEST 모드로 설정하면 타이머를 생성한다.
     packet_test = FALSE;
     opentimers_scheduleIn(
         usendpacket_vars.timerId,
@@ -83,7 +85,7 @@ void usendpacket_receive(OpenQueueEntry_t* pkt) {
 }
 
 //=========================== private =========================================
-#ifdef PACKET_TEST
+#ifdef PACKET_TEST // TEST 용 타이머
 void usendpacket_timer_cb(opentimers_id_t id){
     // calling the task directly as the timer_cb function is executed in
     // task mode by opentimer already
@@ -92,9 +94,9 @@ void usendpacket_timer_cb(opentimers_id_t id){
 #endif
 
 
-void usendpacket_task_cb(bool answer) {
+void usendpacket_task_cb(bool answer) { // 패킷 생성 함수
     
-#ifdef PACKET_TEST
+#ifdef PACKET_TEST //TEST용 인 경우 한 기기가 패킷을 180개 까지 만들면 패킷생성 종료
  //   if (!packet_test) { return; }
     if (packetCount >= 181) {return;}
 
@@ -128,8 +130,7 @@ void usendpacket_task_cb(bool answer) {
     if (usendpacket_vars.busySendingUsendpacket==TRUE) {
         // don't continue if I'm still sending a previous uinject packet
         return;
-    }
-    //uint8_t cmsg = openqueue_check_controlMSG();
+    } 
 
     // if you get here, send a packet
     openserial_printInfo(COMPONENT_UINJECT, 255, 1, answer);
@@ -154,12 +155,12 @@ void usendpacket_task_cb(bool answer) {
     pkt->l3_destinationAdd.type        = ADDR_128B;
     memcpy(&pkt->l3_destinationAdd.addr_128b[0],usendapcket_dst_addr,16);
     // add payload
-    if (answer) {
-        usendpacket_payload_True[0] = packetCount++;
+    if (answer) { // O 버튼을 누른 경우나 Test용 인 경우 payload
+        usendpacket_payload_True[0] = packetCount++; 
         packetfunctions_reserveHeaderSize(pkt,sizeof(usendpacket_payload_True)-1);
         memcpy(&pkt->payload[0],usendpacket_payload_True,sizeof(usendpacket_payload_True)-1);
     }
-    else {
+    else { // X 버튼을 누른 경우 payload
         usendpacket_payload_False[0] = packetCount++;
         packetfunctions_reserveHeaderSize(pkt,sizeof(usendpacket_payload_False)-1);
         memcpy(&pkt->payload[0],usendpacket_payload_False,sizeof(usendpacket_payload_False)-1);
@@ -183,7 +184,5 @@ void usendpacket_task_cb(bool answer) {
         // set busySending to TRUE
         usendpacket_vars.busySendingUsendpacket = TRUE;
     }
- //   trueClicked = FALSE;
-//    falseClicked = FALSE;
 }
 
